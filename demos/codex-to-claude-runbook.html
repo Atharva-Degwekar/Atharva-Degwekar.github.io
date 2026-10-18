@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codex → Claude Code — Migration Runbook</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --paper:#EFE9DC;
+    --paper-dim:#E4DCC9;
+    --card:#F7F3E8;
+    --ink:#20211C;
+    --ink-soft:#514C3F;
+    --rule:#C9BFA4;
+    --amber:#B4691E;
+    --amber-deep:#8B4E15;
+    --teal:#2B5F55;
+    --red-stamp:#9A3324;
+    --max-w:880px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    line-height:1.6;
+    font-size:16px;
+    background-image:
+      linear-gradient(var(--paper-dim) 1px, transparent 1px);
+    background-size: 100% 40px;
+  }
+
+  .sheet{
+    max-width:var(--max-w);
+    margin:0 auto;
+    padding:56px 32px 80px;
+  }
+
+  /* ---- Header / doc stamp ---- */
+  header.docblock{
+    border:2px solid var(--ink);
+    padding:24px 28px;
+    margin-bottom:40px;
+    position:relative;
+    background:var(--card);
+  }
+  header.docblock::before{
+    content:"";
+    position:absolute; inset:6px;
+    border:1px solid var(--rule);
+    pointer-events:none;
+  }
+  .doc-meta{
+    display:flex;
+    justify-content:space-between;
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    letter-spacing:.02em;
+    color:var(--ink-soft);
+    margin-bottom:18px;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  h1{
+    font-family:'Zilla Slab',serif;
+    font-weight:700;
+    font-size:2.15rem;
+    line-height:1.15;
+    margin:0 0 10px;
+  }
+  h1 .arrow{ color:var(--amber-deep); }
+  .subtitle{
+    font-size:1.02rem;
+    color:var(--ink-soft);
+    max-width:60ch;
+    margin:0;
+  }
+  .stamp{
+    position:absolute;
+    top:22px; right:24px;
+    border:2px solid var(--red-stamp);
+    color:var(--red-stamp);
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.08em;
+    padding:5px 10px;
+    transform:rotate(4deg);
+    background:rgba(154,51,36,0.04);
+  }
+
+  /* ---- Section framing ---- */
+  section{ margin-top:52px; }
+  .sec-num{
+    font-family:'Space Mono',monospace;
+    font-size:12px;
+    color:var(--amber-deep);
+    letter-spacing:.06em;
+    margin-bottom:4px;
+  }
+  h2{
+    font-family:'Zilla Slab',serif;
+    font-size:1.5rem;
+    font-weight:600;
+    margin:0 0 6px;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:10px;
+  }
+  h3{
+    font-family:'Zilla Slab',serif;
+    font-size:1.08rem;
+    font-weight:600;
+    margin:26px 0 8px;
+  }
+  p{ margin:10px 0; }
+  .lede{ color:var(--ink-soft); max-width:66ch; }
+  a{ color:var(--amber-deep); }
+
+  /* ---- Challenge cards ---- */
+  .challenge{
+    display:grid;
+    grid-template-columns:34px 1fr;
+    gap:14px;
+    padding:16px 0;
+    border-bottom:1px solid var(--rule);
+  }
+  .challenge:last-child{ border-bottom:none; }
+  .challenge .idx{
+    font-family:'Space Mono',monospace;
+    font-weight:700;
+    color:var(--amber-deep);
+    font-size:1.05rem;
+    padding-top:2px;
+  }
+  .challenge h4{
+    font-family:'Zilla Slab',serif;
+    font-size:1.02rem;
+    margin:0 0 4px;
+  }
+  .challenge .fix{
+    margin-top:6px;
+    padding-left:14px;
+    border-left:3px solid var(--teal);
+    color:var(--ink-soft);
+    font-size:.95rem;
+  }
+  .challenge .fix b{ color:var(--teal); font-weight:600; }
+
+  /* ---- Guardrail box ---- */
+  .guardrail-box{
+    border:2px dashed var(--red-stamp);
+    background:rgba(154,51,36,0.05);
+    padding:18px 20px;
+    margin:20px 0;
+  }
+  .guardrail-box h4{
+    font-family:'Space Mono',monospace;
+    font-size:12px;
+    letter-spacing:.08em;
+    color:var(--red-stamp);
+    margin:0 0 10px;
+    text-transform:uppercase;
+  }
+  .guardrail-box ul{ margin:0; padding-left:20px; }
+  .guardrail-box li{ margin:6px 0; }
+
+  /* ---- Code / prompt block ---- */
+  pre{
+    background:#1E1B14;
+    color:#E8DFC8;
+    font-family:'Space Mono',monospace;
+    font-size:12.5px;
+    line-height:1.55;
+    padding:18px 20px;
+    overflow-x:auto;
+    border-radius:2px;
+    margin:14px 0;
+  }
+  code.inline{
+    font-family:'Space Mono',monospace;
+    background:var(--paper-dim);
+    padding:1px 6px;
+    font-size:.88em;
+    border-radius:2px;
+  }
+
+  /* ---- Tables ---- */
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin:18px 0;
+    font-size:.92rem;
+  }
+  th,td{
+    text-align:left;
+    padding:10px 12px;
+    border-bottom:1px solid var(--rule);
+    vertical-align:top;
+  }
+  th{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    border-bottom:2px solid var(--ink);
+  }
+  td.model-name{ font-weight:600; font-family:'Zilla Slab',serif; font-size:1rem; }
+  .tag{
+    display:inline-block;
+    font-family:'Space Mono',monospace;
+    font-size:10.5px;
+    padding:2px 7px;
+    border:1px solid var(--teal);
+    color:var(--teal);
+    margin-right:4px;
+  }
+
+  /* ---- Token tip list ---- */
+  .tip{
+    display:flex; gap:12px;
+    padding:14px 0;
+    border-bottom:1px solid var(--rule);
+  }
+  .tip:last-child{border-bottom:none;}
+  .tip .mark{
+    font-family:'Space Mono',monospace;
+    color:var(--amber-deep);
+    font-weight:700;
+  }
+  .tip h4{ font-family:'Zilla Slab',serif; margin:0 0 4px; font-size:1rem; }
+  .tip p{ margin:0; color:var(--ink-soft); font-size:.94rem; }
+
+  footer{
+    margin-top:60px;
+    padding-top:20px;
+    border-top:2px solid var(--ink);
+    font-size:.85rem;
+    color:var(--ink-soft);
+    font-family:'Space Mono',monospace;
+  }
+
+  @media (max-width:600px){
+    .sheet{padding:32px 18px 60px;}
+    h1{font-size:1.6rem;}
+    .stamp{ position:static; display:inline-block; margin-top:14px; transform:rotate(0);}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="docblock">
+    <div class="stamp">READ FIRST</div>
+    <div class="doc-meta">
+      <span>RUNBOOK · AGENT-MIGRATION-01</span>
+      <span>FOR: DEVELOPERS ON LARGE, ONGOING PROJECTS</span>
+    </div>
+    <h1>Codex <span class="arrow">→</span> Claude Code<br>Migration Runbook</h1>
+    <p class="subtitle">How to move an ongoing, large project from Codex to Claude Code without losing context, without surprise commits, and without burning tokens re-explaining the codebase every session.</p>
+  </header>
+
+  <section>
+    <div class="sec-num">01 / CHALLENGES</div>
+    <h2>What actually goes wrong when you switch</h2>
+    <p class="lede">These are the failure modes teams hit most often moving a live, non-trivial codebase from Codex to Claude Code — and the specific habit that avoids each one.</p>
+
+    <div class="challenge">
+      <div class="idx">A</div>
+      <div>
+        <h4>Codex's accumulated context doesn't come with you</h4>
+        <p>Every decision, workaround, and "why we did it this way" that lived in your Codex conversation history stays in Codex. Claude Code starts cold on session one.</p>
+        <div class="fix"><b>Fix —</b> Before switching, ask Codex/ChatGPT for a written handoff summary (purpose, architecture, decisions, open issues). Feed that into Claude Code's first read-only session so it verifies the summary against the real repo instead of guessing. See the companion prompt file.</div>
+      </div>
+    </div>
+
+    <div class="challenge">
+      <div class="idx">B</div>
+      <div>
+        <h4>No shared persistent-memory file yet</h4>
+        <p>Codex workflows often lean on conversation history for continuity. Claude Code's equivalent is a project-root <code class="inline">CLAUDE.md</code> file it reads at the start of every session — if it doesn't exist, Claude re-derives context (and burns tokens) each time.</p>
+        <div class="fix"><b>Fix —</b> Run the pre-work context-capture prompt once to generate a durable <code class="inline">context.md</code>, and keep a short <code class="inline">CLAUDE.md</code> pointing to it plus your house rules (style, test command, guardrails).</div>
+      </div>
+    </div>
+
+    <div class="challenge">
+      <div class="idx">C</div>
+      <div>
+        <h4>Different default autonomy / permission model</h4>
+        <p>Approval settings, sandboxing, and what counts as a "safe" auto-run action differ between the two tools. A permission that felt safe in Codex can mean something more permissive in Claude Code, or vice versa.</p>
+        <div class="fix"><b>Fix —</b> Don't assume defaults carry over. Explicitly set your permission mode and, separately, state your git rules in plain language every session (see Guardrails, below) rather than trusting a tool-level setting alone.</div>
+      </div>
+    </div>
+
+    <div class="challenge">
+      <div class="idx">D</div>
+      <div>
+        <h4>Risk of silent large-scope edits on a big repo</h4>
+        <p>On a large project, an agent that's uncertain about scope can "helpfully" touch more files than intended — renames, reformatting, or reorganizing that mixes with your real change and makes review hard.</p>
+        <div class="fix"><b>Fix —</b> Start every new task by asking Claude Code to state its plan and the exact file list it intends to touch before it edits anything. Review the list first.</div>
+      </div>
+    </div>
+
+    <div class="challenge">
+      <div class="idx">E</div>
+      <div>
+        <h4>Auto-commit / auto-merge habits carrying over</h4>
+        <p>If your Codex setup allowed git actions automatically, that habit is easy to assume is fine here too — and a wrong assumption on a shared branch is expensive.</p>
+        <div class="fix"><b>Fix —</b> Bake an explicit "always ask before commit/merge/push" rule into <code class="inline">CLAUDE.md</code> and repeat it in-session on anything touching shared branches. Treat it as non-negotiable, not a default you inherited.</div>
+      </div>
+    </div>
+
+    <div class="challenge">
+      <div class="idx">F</div>
+      <div>
+        <h4>Team prompting habits don't transfer 1:1</h4>
+        <p>Prompt phrasing that worked well in Codex (structure, verbosity, how you specify constraints) isn't guaranteed to produce the same behavior in Claude Code.</p>
+        <div class="fix"><b>Fix —</b> Give the first few sessions a short adjustment period. Keep tasks scoped and check the plan/diff before accepting, rather than assuming identical phrasing means identical results.</div>
+      </div>
+    </div>
+
+    <div class="challenge">
+      <div class="idx">G</div>
+      <div>
+        <h4>Re-reading the whole repo every session wastes tokens</h4>
+        <p>Without a persistent context file, a large codebase means every session pays the "figure out the codebase" cost again in input tokens.</p>
+        <div class="fix"><b>Fix —</b> This is what <code class="inline">context.md</code> and <code class="inline">CLAUDE.md</code> solve structurally — see Section 03.</div>
+      </div>
+    </div>
+
+  </section>
+
+  <section>
+    <div class="sec-num">02 / PRE-WORK</div>
+    <h2>Run the context-capture prompt first</h2>
+    <p>Before any real task, run Claude Code once in <strong>read-only mode</strong> to build its own map of the project and write it to <code class="inline">context.md</code>. The full copy-paste prompt, plus instructions for pulling a handoff brief out of Codex/ChatGPT first, is in the companion file:</p>
+    <p><code class="inline">claude-code-context-capture-prompt.md</code></p>
+    <p>In short, that prompt tells Claude Code to:</p>
+    <ul>
+      <li>Treat this as a context-gathering session only — no edits outside <code class="inline">context.md</code>.</li>
+      <li>Read the repo (code, README, commit history, comments) and, if you provide it, a pasted Codex/ChatGPT handoff summary — verifying that summary against the real code rather than trusting it blindly.</li>
+      <li>Write a structured record: project summary, architecture, tech stack, repo layout, conventions, current in-progress work, and an explicit list of open questions it couldn't resolve on its own.</li>
+      <li>Report back in chat what it found and what's still unclear — not just "done."</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-num">03 / GUARDRAILS</div>
+    <h2>Rules to set every session, not just once</h2>
+    <p class="lede">Set these explicitly in <code class="inline">CLAUDE.md</code> so they persist, and restate the git rule verbally in-session for anything touching a shared branch — a tool-level permission is not the same as a standing instruction it will re-check every time.</p>
+
+    <div class="guardrail-box">
+      <h4>Non-negotiable, every session</h4>
+      <ul>
+        <li>Never run <code class="inline">git commit</code>, <code class="inline">git merge</code>, or <code class="inline">git push</code> without asking first and getting an explicit yes — even on tasks where it technically has the access to do so.</li>
+        <li>Never touch a file outside the stated scope of the current task without flagging it and asking.</li>
+        <li>During context-gathering sessions: read-only. The only file it may create or edit is <code class="inline">context.md</code>.</li>
+        <li>State the plan and file list before editing anything on a new task.</li>
+        <li>Keep <code class="inline">context.md</code> updated as work happens, but never by silently deleting prior sections — call out what changed and why.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-num">04 / TOKEN EFFICIENCY</div>
+    <h2>Get good output for fewer tokens</h2>
+    <p class="lede">Most of the token cost on a large project is re-explaining context and re-reading files the agent already saw. These habits attack that directly.</p>
+
+    <div class="tip">
+      <div class="mark">01</div>
+      <div><h4>Keep <code class="inline">CLAUDE.md</code> short and pointed</h4><p>A few hundred words: what the project is, where to find <code class="inline">context.md</code>, your house rules, your test/build commands. Claude Code reads this every session — a bloated file is a recurring tax.</p></div>
+    </div>
+    <div class="tip">
+      <div class="mark">02</div>
+      <div><h4>Let <code class="inline">context.md</code> replace re-exploration</h4><p>Once it exists, point new sessions at it instead of letting the agent re-grep the whole repo from scratch. Update it incrementally rather than regenerating it.</p></div>
+    </div>
+    <div class="tip">
+      <div class="mark">03</div>
+      <div><h4>Scope tasks narrowly</h4><p>"Fix the pagination bug in <code class="inline">OrderListView</code>" costs far fewer tokens than "look through the order system and fix what's wrong" — the second forces broad exploration every time.</p></div>
+    </div>
+    <div class="tip">
+      <div class="mark">04</div>
+      <div><h4>Clear or compact context between unrelated tasks</h4><p>Long-running sessions that drift across unrelated tasks accumulate irrelevant history that gets re-sent with every turn. Start a fresh session per task where the tasks aren't related.</p></div>
+    </div>
+    <div class="tip">
+      <div class="mark">05</div>
+      <div><h4>Use prompt caching for repeated context</h4><p>Content that's identical across calls (a large <code class="inline">CLAUDE.md</code>, a pasted spec) is far cheaper to re-send as a cache read than as fresh input — this matters most on long sessions with heavy shared context.</p></div>
+    </div>
+    <div class="tip">
+      <div class="mark">06</div>
+      <div><h4>Match the model to the task (see Section 05)</h4><p>Route routine, mechanical work to a cheaper/faster model and reserve the most capable model for genuinely hard reasoning or large multi-file changes.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-num">05 / MODEL CHOICE</div>
+    <h2>Which model, and why</h2>
+    <p class="lede">As of September 2026, four Claude models are current. Pricing is per million tokens (input / output) and changes over time — confirm current rates at <a href="https://docs.claude.com/en/docs/about-claude/pricing" target="_blank">docs.claude.com</a> before relying on exact figures.</p>
+
+    <table>
+      <thead>
+        <tr><th>Model</th><th>Best for</th><th>Context window</th><th>Token behavior</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="model-name">Haiku 4.5</td>
+          <td>Fast, mechanical work: simple edits, formatting, quick lookups, high-volume/low-complexity subtasks.</td>
+          <td>200K tokens</td>
+          <td>Cheapest per token; no adaptive "thinking" step, so latency and cost stay low and predictable.</td>
+        </tr>
+        <tr>
+          <td class="model-name">Sonnet 5</td>
+          <td>The default for most day-to-day Claude Code work — everyday features, refactors, bug fixes on a large codebase.</td>
+          <td>1M tokens</td>
+          <td>Adaptive thinking with adjustable effort — dial effort down for routine tasks to cut both latency and token spend.</td>
+        </tr>
+        <tr>
+          <td class="model-name">Opus 5</td>
+          <td>Complex, multi-file agentic coding, architecture-level decisions, and the hardest debugging on a large project.</td>
+          <td>1M tokens</td>
+          <td>Highest capability, priced accordingly — reserve for tasks where Sonnet's output quality genuinely isn't enough.</td>
+        </tr>
+        <tr>
+          <td class="model-name">Fable 5.1</td>
+          <td>The most demanding reasoning work, where the capability gain justifies a real cost premium over Opus.</td>
+          <td>1M tokens</td>
+          <td>Adaptive thinking is always on; priced above Opus — use selectively, not as a default driver.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>A practical routing rule</h3>
+    <p>Default new sessions to <strong>Sonnet 5</strong> for general Claude Code work. Drop to <strong>Haiku 4.5</strong> for batch-style mechanical subtasks (renames, boilerplate, simple lookups) via subagents where your workflow supports it. Escalate to <strong>Opus 5</strong> only when Sonnet's plan or output is visibly insufficient — a hard architectural call, a gnarly multi-file bug, a large-scope refactor. Treat <strong>Fable 5.1</strong> as a deliberate, occasional choice rather than a default.</p>
+  </section>
+
+  <section>
+    <div class="sec-num">06 / HANDOFF</div>
+    <h2>Instructions to give Codex or ChatGPT</h2>
+    <p>If Codex/ChatGPT has been carrying this project's context, run this in Codex/ChatGPT <em>before</em> your first Claude Code session, and paste the result into the companion prompt file's handoff placeholder:</p>
+    <pre>Summarize everything you know about this project for a handoff to another
+AI coding assistant: project purpose, architecture, tech stack, key
+decisions and why they were made, current in-progress work, known issues,
+and anything unusual or non-obvious about the codebase. Write it as plain
+prose/bullets I can paste elsewhere — don't assume the reader has this
+conversation's history.</pre>
+    <p>Claude Code then treats that summary as a hypothesis to verify against the real repository — not as ground truth — and records any mismatches it finds in <code class="inline">context.md</code>.</p>
+  </section>
+
+  <footer>
+    companion file: claude-code-context-capture-prompt.md · confirm current model names/pricing at docs.claude.com before relying on exact figures
+  </footer>
+
+</div>
+</body>
+</html>
